@@ -30,24 +30,6 @@
 
 package com.amazon.opendistroforelasticsearch.security.filter;
 
-import java.nio.file.Path;
-
-import javax.net.ssl.SSLPeerUnverifiedException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
-
 import com.amazon.opendistroforelasticsearch.security.auditlog.AuditLog;
 import com.amazon.opendistroforelasticsearch.security.auditlog.AuditLog.Origin;
 import com.amazon.opendistroforelasticsearch.security.auth.BackendRegistry;
@@ -59,6 +41,18 @@ import com.amazon.opendistroforelasticsearch.security.ssl.util.SSLRequestHelper.
 import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
 import com.amazon.opendistroforelasticsearch.security.support.HTTPHelper;
 import com.amazon.opendistroforelasticsearch.security.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import javax.net.ssl.SSLPeerUnverifiedException;
+import java.nio.file.Path;
 
 public class OpenDistroSecurityRestFilter {
 
@@ -143,6 +137,7 @@ public class OpenDistroSecurityRestFilter {
 
         if(request.method() != Method.OPTIONS 
                 && !"/_opendistro/_security/health".equals(request.path())) {
+            log.info("Calling authenticate");
             if (!registry.authenticate(request, channel, threadContext)) {
                 // another roundtrip
                 org.apache.logging.log4j.ThreadContext.remove("user");

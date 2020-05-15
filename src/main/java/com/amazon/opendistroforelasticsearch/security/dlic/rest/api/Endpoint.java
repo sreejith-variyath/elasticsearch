@@ -27,5 +27,6 @@ public enum Endpoint {
 	PERMISSIONSINFO,
 	AUTHTOKEN,
 	TENANTS,
-	NODESDN;
+	NODESDN,
+    DOMAIN;
 }

@@ -30,15 +30,14 @@
 
 package com.amazon.opendistroforelasticsearch.security.configuration;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
+import com.amazon.opendistroforelasticsearch.security.DefaultObjectMapper;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.CType;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.SecurityDynamicConfiguration;
+import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
 import com.amazon.opendistroforelasticsearch.security.support.ConfigHelper;
+import com.amazon.opendistroforelasticsearch.security.support.OpenDistroSecurityDeprecationHandler;
+import com.amazon.opendistroforelasticsearch.security.support.OpenDistroSecurityUtils;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -58,13 +57,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.amazon.opendistroforelasticsearch.security.DefaultObjectMapper;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.CType;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.SecurityDynamicConfiguration;
-import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
-import com.amazon.opendistroforelasticsearch.security.support.OpenDistroSecurityDeprecationHandler;
-import com.amazon.opendistroforelasticsearch.security.support.OpenDistroSecurityUtils;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ConfigurationLoaderSecurity7 {
 
@@ -130,8 +129,10 @@ public class ConfigurationLoaderSecurity7 {
 
                 // Since NODESDN is newly introduced data-type applying for existing clusters as well, we make it backward compatible by returning valid empty
                 // SecurityDynamicConfiguration.
-                if(cType == CType.NODESDN) {
+                log.info("cType {}",cType);
+                if(cType == CType.NODESDN ) {
                     try {
+                        log.info("cType skipping {}",cType);
                         SecurityDynamicConfiguration<?> empty = ConfigHelper.createEmptySdc(cType, ConfigurationRepository.getDefaultConfigVersion());
                         rs.put(cType, empty);
                         latch.countDown();
@@ -168,6 +169,7 @@ public class ConfigurationLoaderSecurity7 {
 
         for (int i = 0; i < events.length; i++) {
             final String event = events[i].toLCString();
+            log.info(" CTYPE {}",event);
             mget.add(securityIndex, event);
         }
 
@@ -180,7 +182,14 @@ public class ConfigurationLoaderSecurity7 {
                 MultiGetItemResponse[] responses = response.getResponses();
                 for (int i = 0; i < responses.length; i++) {
                     MultiGetItemResponse singleResponse = responses[i];
+                    log.info("singleResponse {}",singleResponse);
                     if(singleResponse != null && !singleResponse.isFailed()) {
+                        log.info("response id {}",singleResponse.getId());
+                        log.info("response getIndex {}",singleResponse.getIndex());
+                        log.info("response getType {}",singleResponse.getType());
+                        log.info("response getFields {}",singleResponse.getResponse().getFields());
+                        log.info("response isSourceEmpty {}",singleResponse.getResponse().isSourceEmpty());
+                        log.info("response isExists {}",singleResponse.getResponse().isExists());
                         GetResponse singleGetResponse = singleResponse.getResponse();
                         if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                             //success
@@ -242,6 +251,7 @@ public class ConfigurationLoaderSecurity7 {
             parser.nextToken();
 
             final String jsonAsString = OpenDistroSecurityUtils.replaceEnvVars(new String(parser.binaryValue()), settings);
+            log.info("jsonAsString {}", jsonAsString);
             final JsonNode jsonNode = DefaultObjectMapper.readTree(jsonAsString);
             int configVersion = 1;
 

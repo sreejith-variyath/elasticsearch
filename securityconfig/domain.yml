@@ -1,0 +1,12 @@
+---
+_meta:
+  type: "domain"
+  config_version: 2
+
+# Define your domain here
+
+## Demo domain
+default_domain:
+  reserved: false
+  hidden: true
+  description: "Domain for admin user"

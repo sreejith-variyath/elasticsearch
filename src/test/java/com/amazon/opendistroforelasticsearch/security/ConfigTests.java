@@ -17,32 +17,21 @@
 
 package com.amazon.opendistroforelasticsearch.security;
 
-import java.io.File;
-
+import com.amazon.opendistroforelasticsearch.security.securityconf.Migration;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.CType;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.SecurityDynamicConfiguration;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.*;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.amazon.opendistroforelasticsearch.security.securityconf.Migration;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.CType;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.SecurityDynamicConfiguration;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.ActionGroupsV6;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.ConfigV6;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.InternalUserV6;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.RoleMappingsV6;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v6.RoleV6;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.ActionGroupsV7;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.ConfigV7;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.InternalUserV7;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleMappingsV7;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
-import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import java.io.File;
 
 public class ConfigTests {
     
@@ -92,7 +81,8 @@ public class ConfigTests {
         check("./securityconfig/roles_mapping.yml", CType.ROLESMAPPING);
         
         check("./securityconfig/tenants.yml", CType.TENANTS);
-        
+        check("./securityconfig/domain.yml", CType.DOMAIN);
+
     }
     
     private void check(String file, CType cType) throws Exception {
