@@ -75,7 +75,66 @@ public class Migration {
         
         return new Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<TenantV7>>(r7, t7);
         
-    }
+    } 
+
+    public static Tuple<SecurityDynamicConfiguration<RoleV7>,SecurityDynamicConfiguration<AppV7>>  migrateRolesApps(SecurityDynamicConfiguration<RoleV6> r6cs, SecurityDynamicConfiguration<RoleMappingsV6> rms6) throws MigrationException {
+        
+        final SecurityDynamicConfiguration<RoleV7> r7 = SecurityDynamicConfiguration.empty();
+        r7.setCType(r6cs.getCType());
+        r7.set_meta(new Meta());
+        r7.get_meta().setConfig_version(2);
+        r7.get_meta().setType("roles");
+        
+        final SecurityDynamicConfiguration<AppV7> a7 = SecurityDynamicConfiguration.empty();
+        a7.setCType(CType.APPS);
+        a7.set_meta(new Meta());
+        a7.get_meta().setConfig_version(2);
+        a7.get_meta().setType("apps");
+
+        Set<String> dedupApps = new HashSet<>();
+        
+        for(final Entry<String, RoleV6> r6e: r6cs.getCEntries().entrySet()) {
+            final String roleName  = r6e.getKey();
+            final RoleV6 r6 = r6e.getValue();
+            
+            if(r6 == null) {
+                RoleV7 noPermRole = new RoleV7();
+                noPermRole.setDescription("Migrated from v6, was empty");
+                r7.putCEntry(roleName, noPermRole);
+                continue;
+            }
+
+            r7.putCEntry(roleName, new RoleV7(r6));
+            
+            for(Entry<String, String> app: r6.getApps().entrySet()) {
+                dedupApps.add(app.getKey());
+            }
+        }
+        
+        if(rms6 != null) {
+            for(final Entry<String, RoleMappingsV6> r6m: rms6.getCEntries().entrySet()) {
+                final String roleName  = r6m.getKey();
+                
+                if(!r7.exists(roleName)) {
+                    //rolemapping but role does not exists
+                    RoleV7 noPermRole = new RoleV7();
+                    noPermRole.setDescription("Migrated from v6, was in rolemappings but no role existed");
+                    r7.putCEntry(roleName, noPermRole);
+                }
+                
+            }
+        }
+        
+        for(String appName: dedupApps) {
+            AppV7 entry = new AppV7();
+            entry.setDescription("Migrated from v6");
+            a7.putCEntry(appName, entry);
+        }
+        
+        return new Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<AppV7>>(r7, a7);
+        
+    } 
+    
     
     public static SecurityDynamicConfiguration<ConfigV7> migrateConfig(SecurityDynamicConfiguration<ConfigV6> r6cs) throws MigrationException {
         final SecurityDynamicConfiguration<ConfigV7> c7 = SecurityDynamicConfiguration.empty();

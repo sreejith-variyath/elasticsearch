@@ -64,6 +64,7 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
     private final Set<String> roles = new HashSet<String>();
     private final Set<String> openDistroSecurityRoles = new HashSet<String>();
     private String requestedTenant;
+    private String requestedApp;
     private Map<String, String> attributes = new HashMap<>();
     private boolean isInjected = false;
 
@@ -72,6 +73,7 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
         name = in.readString();
         roles.addAll(in.readList(StreamInput::readString));
         requestedTenant = in.readString();
+        requestedApp = in.readString();
         attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         openDistroSecurityRoles.addAll(in.readList(StreamInput::readString));
     }
@@ -172,6 +174,14 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
 
     public final void setRequestedTenant(String requestedTenant) {
         this.requestedTenant = requestedTenant;
+   }
+     
+    public final String getRequestedApp() {
+        return requestedApp;
+    }
+
+    public final void setRequestedApp(String requestedApp) {
+        this.requestedApp = requestedApp;
     }
     
     
@@ -184,12 +194,12 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
     }
 
     public final String toStringWithAttributes() {
-        return "User [name=" + name + ", backend_roles=" + roles + ", requestedTenant=" + requestedTenant + ", attributes=" + attributes + "]";
+        return "User [name=" + name + ", backend_roles=" + roles + ", requestedTenant=" + requestedTenant + ", requestedApp=" + requestedApp + ", attributes=" + attributes + "]";
     }
 
     @Override
     public final String toString() {
-        return "User [name=" + name + ", backend_roles=" + roles + ", requestedTenant=" + requestedTenant + "]";
+        return "User [name=" + name + ", backend_roles=" + roles + ", requestedTenant=" + requestedTenant + ", requestedApp=" + requestedApp + "]";
     }
 
     @Override
@@ -238,6 +248,7 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
         out.writeString(name);
         out.writeStringCollection(new ArrayList<String>(roles));
         out.writeString(requestedTenant);
+        out.writeString(requestedApp);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         out.writeStringCollection(openDistroSecurityRoles==null?Collections.emptyList():new ArrayList<String>(openDistroSecurityRoles));
     }

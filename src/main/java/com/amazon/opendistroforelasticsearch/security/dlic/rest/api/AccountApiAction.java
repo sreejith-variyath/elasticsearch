@@ -133,9 +133,11 @@ public class AccountApiAction extends AbstractApiAction {
                         .field("is_hidden", isHidden(configuration, user.getName()))
                         .field("is_internal_user", configuration.exists(user.getName()))
                         .field("user_requested_tenant", user.getRequestedTenant())
+                        .field("user_requested_app", user.getRequestedApp())
                         .field("backend_roles", user.getRoles())
                         .field("custom_attribute_names", user.getCustomAttributesMap().keySet())
                         .field("tenants", privilegesEvaluator.mapTenants(user, securityRoles))
+                        .field("apps", privilegesEvaluator.mapApps(user, securityRoles))
                         .field("roles", securityRoles);
             }
             builder.endObject();

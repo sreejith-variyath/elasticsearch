@@ -16,6 +16,7 @@ public class RoleV6 implements Hideable {
     private boolean hidden;
     private List<String> cluster = Collections.emptyList();
     private Map<String, String> tenants = Collections.emptyMap();
+    private Map<String, String> apps = Collections.emptyMap();
     private Map<String, Index> indices = Collections.emptyMap();
 
     public static class Index {
@@ -92,6 +93,14 @@ public class RoleV6 implements Hideable {
         this.tenants = tenants;
     }
 
+    public Map<String, String> getApps() {
+        return apps;
+    }
+
+    public void setApps(Map<String, String> apps) {
+        this.apps = apps;
+    }
+
     public Map<String, Index> getIndices() {
         return indices;
     }
@@ -102,7 +111,7 @@ public class RoleV6 implements Hideable {
 
     @Override
     public String toString() {
-        return "Role [readonly=" + readonly + ", hidden=" + hidden + ", cluster=" + cluster + ", tenants=" + tenants + ", indices=" + indices + "]";
+        return "Role [readonly=" + readonly + ", hidden=" + hidden + ", cluster=" + cluster + ", tenants=" + tenants + ", apps=" + apps + ", indices=" + indices + "]";
     }
     
     @JsonIgnore

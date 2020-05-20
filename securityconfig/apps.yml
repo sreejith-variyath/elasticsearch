@@ -1,0 +1,11 @@
+---
+_meta:
+  type: "apps"
+  config_version: 2
+
+# Define your apps here
+
+## Demo apps
+admin_app:
+  reserved: false
+  description: "Demo app for admin user"

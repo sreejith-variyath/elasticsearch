@@ -240,7 +240,7 @@ public class PrivilegesEvaluator {
                     if(privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
 
                         final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, dcm, requestedResolved,
-                                mapTenants(user, mappedRoles));
+                                mapTenants(user, mappedRoles), mapApps(user, mappedRoles));
 
                         if(log.isDebugEnabled()) {
                             log.debug("Result from privileges interceptor for cluster perm: {}", replaceResult);
@@ -322,7 +322,7 @@ public class PrivilegesEvaluator {
 
         if(privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
 
-            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, dcm, requestedResolved, mapTenants(user, mappedRoles));
+            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, dcm, requestedResolved, mapTenants(user, mappedRoles), mapApps(user, mappedRoles));
 
             if(log.isDebugEnabled()) {
                 log.debug("Result from privileges interceptor: {}", replaceResult);
@@ -441,6 +441,17 @@ public class PrivilegesEvaluator {
     public Set<String> getAllConfiguredTenantNames() {
 
         return configModel.getAllConfiguredTenantNames();
+    }
+
+    public Map<String, Boolean> mapApps(final User user, Set<String> roles) {
+        return this.configModel.mapApps(user, roles);
+    }
+
+
+
+    public Set<String> getAllConfiguredAppNames() {
+
+        return configModel.getAllConfiguredAppNames();
     }
 
     public boolean multitenancyEnabled() {

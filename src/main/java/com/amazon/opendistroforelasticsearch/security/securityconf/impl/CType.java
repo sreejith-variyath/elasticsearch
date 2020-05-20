@@ -19,6 +19,7 @@ import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.Inter
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleMappingsV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.AppV7;
 
 public enum CType {
 
@@ -30,6 +31,7 @@ public enum CType {
     ROLES(toMap(1, RoleV6.class, 2, RoleV7.class)), 
     ROLESMAPPING(toMap(1, RoleMappingsV6.class, 2, RoleMappingsV7.class)),
     TENANTS(toMap(2, TenantV7.class)),
+    APPS(toMap(2, AppV7.class)),
     NODESDN(toMap(1, NodesDn.class, 2, NodesDn.class));
 
     private Map<Integer, Class<?>> implementations;

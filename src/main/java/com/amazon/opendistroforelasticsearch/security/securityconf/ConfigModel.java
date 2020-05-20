@@ -41,8 +41,10 @@ import com.amazon.opendistroforelasticsearch.security.user.User;
 public abstract class ConfigModel {
 
     public abstract Map<String, Boolean> mapTenants(User user, Set<String> roles);
+    public abstract Map<String, Boolean> mapApps(User user, Set<String> roles);
     public abstract Set<String> mapSecurityRoles(User user, TransportAddress caller);
     public abstract SecurityRoles getSecurityRoles();
 
     public abstract Set<String> getAllConfiguredTenantNames();
+    public abstract Set<String> getAllConfiguredAppNames();
 }

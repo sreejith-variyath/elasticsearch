@@ -48,6 +48,8 @@ opendistro_security_all_access:
         - UNLIMITED
   tenants:
     admin_tenant: RW
+  apps:
+    admin_app: RW
 
 # Read all, but no write permissions
 opendistro_security_readall:

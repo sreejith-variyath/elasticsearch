@@ -123,6 +123,7 @@ import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.Inter
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleMappingsV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.AppV7;
 import com.amazon.opendistroforelasticsearch.security.ssl.OpenDistroSecuritySSLPlugin;
 import com.amazon.opendistroforelasticsearch.security.ssl.util.ExceptionUtils;
 import com.amazon.opendistroforelasticsearch.security.ssl.util.SSLConfigConstants;
@@ -753,6 +754,7 @@ public class OpenDistroSecurityAdmin {
 
                 if(!legacy) {
                     success = retrieveFile(tc, cd+"security_tenants_"+date+".yml", index, "tenants", legacy) && success;
+                    success = retrieveFile(tc, cd+"security_apps_"+date+".yml", index, "apps", legacy) && success;
                 }
 
                 final boolean populateFileIfEmpty = true;
@@ -1209,6 +1211,7 @@ public class OpenDistroSecurityAdmin {
         
         if(!legacy) {
             success = retrieveFile(tc, backupDir.getAbsolutePath()+"/tenants.yml", index, "tenants", legacy) && success;
+            success = retrieveFile(tc, backupDir.getAbsolutePath()+"/apps.yml", index, "apps", legacy) && success;
         }
         success = retrieveFile(tc, backupDir.getAbsolutePath()+"/nodes_dn.yml", index, "nodesdn", legacy, true) && success;
 
@@ -1226,6 +1229,7 @@ public class OpenDistroSecurityAdmin {
         
         if(!legacy) {
             success = uploadFile(tc, cd+"tenants.yml", index, "tenants", legacy, resolveEnvVars) && success;
+            success = uploadFile(tc, cd+"apps.yml", index, "apps", legacy, resolveEnvVars) && success;
         }
 
         success = uploadFile(tc, cd+"nodes_dn.yml", index, "nodesdn", legacy, resolveEnvVars, true) && success;
@@ -1267,6 +1271,7 @@ public class OpenDistroSecurityAdmin {
             SecurityDynamicConfiguration<InternalUserV7> internalUsersV7 = Migration.migrateInternalUsers(SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"internal_users.yml")), CType.INTERNALUSERS, 1, 0, 0));
             SecurityDynamicConfiguration<RoleMappingsV6> rolesmappingV6 = SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"roles_mapping.yml")), CType.ROLESMAPPING, 1, 0, 0);
             Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<TenantV7>> rolesTenantsV7 = Migration.migrateRoles(SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"roles.yml")), CType.ROLES, 1, 0, 0), rolesmappingV6);
+            Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<AppV7>> rolesAppsV7 = Migration.migrateRolesApps(SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"roles.yml")), CType.ROLES, 1, 0, 0), rolesmappingV6);
             SecurityDynamicConfiguration<RoleMappingsV7> rolesmappingV7 = Migration.migrateRoleMappings(rolesmappingV6);
             SecurityDynamicConfiguration<NodesDn> nodesDn =
                 Migration.migrateNodesDn(SecurityDynamicConfiguration.fromNode(
@@ -1278,6 +1283,8 @@ public class OpenDistroSecurityAdmin {
             DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/internal_users.yml"), internalUsersV7);
             DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/roles.yml"), rolesTenantsV7.v1());
             DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/tenants.yml"), rolesTenantsV7.v2());
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/roles.yml"), rolesAppsV7.v1());
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/apps.yml"), rolesAppsV7.v2());
             DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/roles_mapping.yml"), rolesmappingV7);
             DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/nodes_dn.yml"), nodesDn);
         } catch (Exception e) {
@@ -1342,6 +1349,9 @@ public class OpenDistroSecurityAdmin {
             
             if(new File(cd+"tenants.yml").exists() && version != 6) {
                 success = validateConfigFile(cd+"tenants.yml", CType.TENANTS, version) && success;
+            }
+            if(new File(cd+"apps.yml").exists() && version != 6) {
+                success = validateConfigFile(cd+"apps.yml", CType.APPS, version) && success;
             }
             
             return success?0:-1;

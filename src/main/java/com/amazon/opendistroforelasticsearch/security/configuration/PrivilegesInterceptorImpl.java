@@ -52,6 +52,7 @@ import com.amazon.opendistroforelasticsearch.security.user.User;
 public class PrivilegesInterceptorImpl extends PrivilegesInterceptor {
 
     private static final String USER_TENANT = "__user__";
+    private static final String USER_APP = "__user__app__";
     private static final String EMPTY_STRING = "";
 
     protected final Logger log = LogManager.getLogger(this.getClass());
@@ -74,6 +75,27 @@ public class PrivilegesInterceptorImpl extends PrivilegesInterceptor {
 
             if (tenants.get(requestedTenant) == Boolean.FALSE && action.startsWith("indices:data/write")) {
                 log.warn("Tenant {} is not allowed to write (user: {})", requestedTenant, user.getName());
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isAppAllowed(final ActionRequest request, final String action, final User user, final Map<String, Boolean> apps,
+                                    final String requestedApp) {
+
+        if (!apps.keySet().contains(requestedApp)) {
+            log.warn("App {} is not allowed for user {}", requestedApp, user.getName());
+            return false;
+        } else {
+
+            if (log.isDebugEnabled()) {
+                log.debug("request " + request.getClass());
+            }
+
+            if (apps.get(requestedApp) == Boolean.FALSE && action.startsWith("indices:data/write")) {
+                log.warn("App {} is not allowed to write (user: {})", requestedApp, user.getName());
                 return false;
             }
         }
@@ -158,6 +180,132 @@ public class PrivilegesInterceptorImpl extends PrivilegesInterceptor {
             // to avoid security issue
 
             replaceIndex(request, kibanaIndexName, toUserIndexName(kibanaIndexName, requestedTenant), action);
+            return Boolean.FALSE;
+
+        } else if (!user.getName().equals(kibanaserverUsername)) {
+
+            if (log.isTraceEnabled()) {
+                log.trace("not a request to only the .kibana index");
+                log.trace(user.getName() + "/" + kibanaserverUsername);
+                log.trace(requestedResolved + " does not contain only " + kibanaIndexName);
+            }
+
+        }
+
+        return null;
+    }
+
+    /**
+     * return Boolean.TRUE to prematurely deny request
+     * return Boolean.FALSE to prematurely allow request
+     * return null to go through original eval flow
+     *
+     */
+    @Override
+    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final DynamicConfigModel config,
+                                      final Resolved requestedResolved, final Map<String, Boolean> tenants, final Map<String, Boolean> apps) {
+
+        final boolean enabled = config.isKibanaMultitenancyEnabled();//config.dynamic.kibana.multitenancy_enabled;
+
+        if (!enabled) {
+            return null;
+        }
+
+        //next two lines needs to be retrieved from configuration
+        final String kibanaserverUsername = config.getKibanaServerUsername();//config.dynamic.kibana.server_username;
+        final String kibanaIndexName = config.getKibanaIndexname();//config.dynamic.kibana.index;
+
+        String requestedTenant = user.getRequestedTenant();
+        String requestedApp = user.getRequestedApp();
+
+        if (log.isDebugEnabled()) {
+            log.debug("raw requestedTenant: '" + requestedTenant + "'");
+            log.debug("raw requestedApp: '" + requestedApp + "'");
+        }
+
+        //intercept when requests are not made by the kibana server and if the kibana index/alias (.kibana) is the only index/alias involved
+        final boolean kibanaIndexOnly = !user.getName().equals(kibanaserverUsername) && resolveToKibanaIndexOrAlias(requestedResolved, kibanaIndexName);
+
+        if (requestedTenant == null || requestedTenant.length() == 0) {
+            if (log.isTraceEnabled()) {
+                log.trace("No tenant, will resolve to " + kibanaIndexName);
+            }
+
+            if (kibanaIndexOnly && !isTenantAllowed(request, action, user, tenants, "global_tenant")) {
+                return Boolean.TRUE;
+            }
+
+            return null;
+        }
+
+        if (USER_TENANT.equals(requestedTenant)) {
+            requestedTenant = user.getName();
+        }
+
+        if (requestedApp == null || requestedApp.length() == 0) {
+            if (log.isTraceEnabled()) {
+                log.trace("No app, will resolve to " + kibanaIndexName);
+            }
+
+            if (kibanaIndexOnly && !isAppAllowed(request, action, user, apps, "global_app")) {
+                return Boolean.TRUE;
+            }
+
+            return null;
+        }
+
+        if (USER_APP.equals(requestedApp)) {
+            requestedApp = user.getName();
+        }
+
+        if (log.isDebugEnabled() && !user.getName().equals(kibanaserverUsername)) {
+            //log statements only here
+            log.debug("requestedResolved: " + requestedResolved);
+        }
+
+        //request not made by the kibana server and user index is the only index/alias involved
+        if (!user.getName().equals(kibanaserverUsername) && requestedResolved.getAllIndices().size() == 1
+                && requestedResolved.getAllIndices().contains(toUserIndexName(kibanaIndexName, requestedTenant))) {
+
+            if (isTenantAllowed(request, action, user, tenants, requestedTenant)) {
+                return Boolean.FALSE;
+            }
+
+        }
+
+        //request not made by the kibana server and user index is the only index/alias involved
+        if (!user.getName().equals(kibanaserverUsername) && requestedResolved.getAllIndices().size() == 1
+                && requestedResolved.getAllIndices().contains(toUserIndexName(kibanaIndexName, requestedTenant, requestedApp))) {
+
+            if (isAppAllowed(request, action, user, apps, requestedApp)) {
+                return Boolean.FALSE;
+            }
+
+        }
+
+        //intercept when requests are not made by the kibana server and if the kibana index/alias (.kibana) is the only index/alias involved
+        if (kibanaIndexOnly) {
+
+            if (log.isDebugEnabled()) {
+                log.debug("requestedTenant: " + requestedTenant);
+                log.debug("is user tenant: " + requestedTenant.equals(user.getName()));
+                log.debug("requestedApp: " + requestedApp);
+                log.debug("is user app: " + requestedApp.equals(user.getName()));
+            }
+
+            if (!isTenantAllowed(request, action, user, tenants, requestedTenant)) {
+                return Boolean.TRUE;
+            }
+
+            if (!isAppAllowed(request, action, user, apps, requestedApp)) {
+                return Boolean.TRUE;
+            }
+
+            // TODO handle user tenant in that way that this tenant cannot be specified as
+            // regular tenant
+            // to avoid security issue
+
+            replaceIndex(request, kibanaIndexName, toUserIndexName(kibanaIndexName, requestedTenant, requestedApp), action);
             return Boolean.FALSE;
 
         } else if (!user.getName().equals(kibanaserverUsername)) {
@@ -274,6 +422,18 @@ public class PrivilegesInterceptorImpl extends PrivilegesInterceptor {
         }
 
         return originalKibanaIndex + "_" + tenant.hashCode() + "_" + tenant.toLowerCase().replaceAll("[^a-z0-9]+", EMPTY_STRING);
+    }
+
+    private String toUserIndexName(final String originalKibanaIndex, final String tenant, final String app) {
+
+        if (tenant == null) {
+            throw new ElasticsearchException("tenant must not be null here");
+        }
+        if (app == null) {
+            throw new ElasticsearchException("app must not be null here");
+        }
+
+        return originalKibanaIndex + "_" + tenant.hashCode() + "_" + tenant.toLowerCase().replaceAll("[^a-z0-9]+", EMPTY_STRING) + "_" + app.hashCode() + "_" + app.toLowerCase().replaceAll("[^a-z0-9]+", EMPTY_STRING);
     }
 
     private boolean resolveToKibanaIndexOrAlias(final Resolved requestedResolved, final String kibanaIndexName) {

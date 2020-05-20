@@ -34,18 +34,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
-import java.security.cert.X509Certificate;
-import java.util.Set;
+import java.util.SortedMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -56,23 +52,28 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import com.amazon.opendistroforelasticsearch.security.configuration.AdminDNs;
 import com.amazon.opendistroforelasticsearch.security.privileges.PrivilegesEvaluator;
-import com.amazon.opendistroforelasticsearch.security.support.Base64Helper;
 import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
 import com.amazon.opendistroforelasticsearch.security.user.User;
 
-public class OpenDistroSecurityInfoAction extends BaseRestHandler {
+public class AppInfoAction extends BaseRestHandler {
 
     private final Logger log = LogManager.getLogger(this.getClass());
     private final PrivilegesEvaluator evaluator;
     private final ThreadContext threadContext;
+    private final ClusterService clusterService;
+    private final AdminDNs adminDns;
 
-    public OpenDistroSecurityInfoAction(final Settings settings, final RestController controller, final PrivilegesEvaluator evaluator, final ThreadPool threadPool) {
+    public AppInfoAction(final Settings settings, final RestController controller, 
+    		final PrivilegesEvaluator evaluator, final ThreadPool threadPool, final ClusterService clusterService, final AdminDNs adminDns) {
         super();
         this.threadContext = threadPool.getThreadContext();
         this.evaluator = evaluator;
-        controller.registerHandler(GET, "/_opendistro/_security/authinfo", this);
-        controller.registerHandler(POST, "/_opendistro/_security/authinfo", this);
+        this.clusterService = clusterService;
+        this.adminDns = adminDns;
+        controller.registerHandler(GET, "/_opendistro/_security/appinfo", this);
+        controller.registerHandler(POST, "/_opendistro/_security/appinfo", this);
     }
 
     @Override
@@ -86,44 +87,29 @@ public class OpenDistroSecurityInfoAction extends BaseRestHandler {
                 
                 try {
 
-                    
-                    final boolean verbose = request.paramAsBoolean("verbose", false);
-                    
-                    final X509Certificate[] certs = threadContext.getTransient(ConfigConstants.OPENDISTRO_SECURITY_SSL_PEER_CERTIFICATES);
                     final User user = (User)threadContext.getTransient(ConfigConstants.OPENDISTRO_SECURITY_USER);
-                    final TransportAddress remoteAddress = (TransportAddress) threadContext.getTransient(ConfigConstants.OPENDISTRO_SECURITY_REMOTE_ADDRESS);
-
-                    final Set<String> securityRoles = evaluator.mapRoles(user, remoteAddress);
-
-                    builder.startObject();
-                    builder.field("user", user==null?null:user.toString());
-                    builder.field("user_name", user==null?null:user.getName());
-                    builder.field("user_requested_tenant", user==null?null:user.getRequestedTenant());
-                    builder.field("user_requested_app", user==null?null:user.getRequestedApp());
-                    builder.field("remote_address", remoteAddress);
-                    builder.field("backend_roles", user==null?null:user.getRoles());
-                    builder.field("custom_attribute_names", user==null?null:user.getCustomAttributesMap().keySet());
-                    builder.field("roles", securityRoles);
-                    builder.field("tenants", evaluator.mapTenants(user, securityRoles));
-                    builder.field("apps", evaluator.mapApps(user, securityRoles));
-                    builder.field("principal", (String)threadContext.getTransient(ConfigConstants.OPENDISTRO_SECURITY_SSL_PRINCIPAL));
-                    builder.field("peer_certificates", certs != null && certs.length > 0 ? certs.length + "" : "0");
-                    builder.field("sso_logout_url", (String)threadContext.getTransient(ConfigConstants.SSO_LOGOUT_URL));
                     
-                    if(user != null && verbose) {
-                        try {
-                            builder.field("size_of_user", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject(user).length()));
-                            builder.field("size_of_custom_attributes", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject((Serializable) user.getCustomAttributesMap()).getBytes(StandardCharsets.UTF_8).length));
-                            builder.field("size_of_backendroles", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject((Serializable)user.getRoles()).getBytes(StandardCharsets.UTF_8).length));
-                        } catch (Throwable e) {
-                            //ignore
-                        }
+                    //only allowed for admins or the kibanaserveruser
+                    if(user == null || 
+                    		(!user.getName().equals(evaluator.kibanaServerUsername()))
+                    		 && !adminDns.isAdmin(user)) {
+                        response = new BytesRestResponse(RestStatus.FORBIDDEN,"");
+                    } else {
+
+                    	builder.startObject();
+	
+                    	final SortedMap<String, AliasOrIndex> lookup = clusterService.state().metaData().getAliasAndIndexLookup();
+                    	for(final String indexOrAlias: lookup.keySet()) {
+                    		final String app = appNameForIndex(indexOrAlias);
+                    		if(app != null) {
+                    			builder.field(indexOrAlias, app);
+                    		}
+                    	}
+
+	                    builder.endObject();
+	
+	                    response = new BytesRestResponse(RestStatus.OK, builder);
                     }
-                    
-                    
-                    builder.endObject();
-
-                    response = new BytesRestResponse(RestStatus.OK, builder);
                 } catch (final Exception e1) {
                     log.error(e1.toString(),e1);
                     builder = channel.newBuilder(); //NOSONAR
@@ -142,8 +128,40 @@ public class OpenDistroSecurityInfoAction extends BaseRestHandler {
         };
     }
     
+    private String appNameForIndex(String index) {
+    	String[] indexParts;
+    	if(index == null 
+    			|| (indexParts = index.split("_")).length != 3
+    			) {
+    		return null;
+    	}
+    	
+    	
+    	if(!indexParts[0].equals(evaluator.kibanaIndex())) {
+    		return null;
+    	}
+    	
+    	try {
+			final int expectedHash = Integer.parseInt(indexParts[1]);
+			final String sanitizedName = indexParts[2];
+			
+			for(String app: evaluator.getAllConfiguredAppNames()) {
+				if(app.hashCode() == expectedHash && sanitizedName.equals(app.toLowerCase().replaceAll("[^a-z0-9]+",""))) {
+					return app;
+				}
+			}
+
+			return "__privateapp__";
+		} catch (NumberFormatException e) {
+			log.warn("Index "+index+" looks like a Security app index but we cannot parse the hashcode so we ignore it.");
+			return null;
+		}
+    }
+
     @Override
     public String getName() {
-        return "Open Distro Security Info Action";
+        return "App Info Action";
     }
+    
+    
 }

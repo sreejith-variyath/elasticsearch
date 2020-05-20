@@ -62,7 +62,12 @@ public class PrivilegesInterceptor {
                                       final Resolved requestedResolved, final Map<String, Boolean> tenants) {
         throw new RuntimeException("not implemented");
     }
-    
+ 
+    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final DynamicConfigModel config,
+                                      final Resolved requestedResolved, final Map<String, Boolean> tenants, final Map<String, Boolean> apps) {
+        throw new RuntimeException("not implemented");
+    }
+      
     protected final ThreadContext getThreadContext() {
         return threadPool.getThreadContext();
     }

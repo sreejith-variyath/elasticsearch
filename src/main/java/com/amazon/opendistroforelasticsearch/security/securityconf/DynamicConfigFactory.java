@@ -38,6 +38,7 @@ import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.Inter
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleMappingsV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.AppV7;
 import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
 
 public class DynamicConfigFactory implements Initializable, ConfigurationChangeListener {
@@ -46,11 +47,13 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
     private static SecurityDynamicConfiguration<RoleV7> staticRoles = SecurityDynamicConfiguration.empty();
     private static SecurityDynamicConfiguration<ActionGroupsV7> staticActionGroups = SecurityDynamicConfiguration.empty();
     private static SecurityDynamicConfiguration<TenantV7> staticTenants = SecurityDynamicConfiguration.empty();
+    private static SecurityDynamicConfiguration<AppV7> staticApps = SecurityDynamicConfiguration.empty();
 
     static void resetStatics() {
         staticRoles = SecurityDynamicConfiguration.empty();
         staticActionGroups = SecurityDynamicConfiguration.empty();
         staticTenants = SecurityDynamicConfiguration.empty();
+        staticApps = SecurityDynamicConfiguration.empty();
     }
 
     private void loadStaticConfig() throws IOException {
@@ -65,6 +68,10 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
         JsonNode staticTenantsJsonNode = DefaultObjectMapper.YAML_MAPPER
                 .readTree(DynamicConfigFactory.class.getResourceAsStream("/static_config/static_tenants.yml"));
         staticTenants = SecurityDynamicConfiguration.fromNode(staticTenantsJsonNode, CType.TENANTS, 2, 0, 0);
+
+        JsonNode staticAppsJsonNode = DefaultObjectMapper.YAML_MAPPER
+                .readTree(DynamicConfigFactory.class.getResourceAsStream("/static_config/static_apps.yml"));
+        staticApps = SecurityDynamicConfiguration.fromNode(staticAppsJsonNode, CType.APPS, 2, 0, 0);
     }
 
     public final static SecurityDynamicConfiguration<?> addStatics(SecurityDynamicConfiguration<?> original) {
@@ -78,6 +85,10 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
         if(original.getCType() == CType.TENANTS && !staticTenants.getCEntries().isEmpty()) {
             original.add(staticTenants.deepClone());
+        }
+
+        if(original.getCType() == CType.APPS && !staticApps.getCEntries().isEmpty()) {
+            original.add(staticApps.deepClone());
         }
 
         return original;
@@ -133,6 +144,7 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
         SecurityDynamicConfiguration<?> roles = cr.getConfiguration(CType.ROLES);
         SecurityDynamicConfiguration<?> rolesmapping = cr.getConfiguration(CType.ROLESMAPPING);
         SecurityDynamicConfiguration<?> tenants = cr.getConfiguration(CType.TENANTS);
+        SecurityDynamicConfiguration<?> apps = cr.getConfiguration(CType.APPS);
         SecurityDynamicConfiguration<?> nodesDn = cr.getConfiguration(CType.NODESDN);
 
         if(log.isDebugEnabled()) {
@@ -143,6 +155,7 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
             " roles: "+roles.getImplementingClass()+" with "+roles.getCEntries().size()+" entries\n"+
             " rolesmapping: "+rolesmapping.getImplementingClass()+" with "+rolesmapping.getCEntries().size()+" entries\n"+
             " tenants: "+tenants.getImplementingClass()+" with "+tenants.getCEntries().size()+" entries\n"+
+            " apps: "+apps.getImplementingClass()+" with "+apps.getCEntries().size()+" entries\n"+
             " nodesdn: "+nodesDn.getImplementingClass()+" with "+nodesDn.getCEntries().size()+" entries";
             log.debug(logmsg);
             
@@ -186,14 +199,25 @@ public class DynamicConfigFactory implements Initializable, ConfigurationChangeL
 
                 log.debug("Static tenants loaded ({})", staticTenants.getCEntries().size());
 
-                log.debug("Static configuration loaded (total roles: {}/total action groups: {}/total tenants: {})", roles.getCEntries().size(), actionGroups.getCEntries().size(), tenants.getCEntries().size());
+                
+                if(apps.containsAny(staticApps)) {
+                    throw new StaticResourceException("Cannot override static apps");
+                }
+                if(!apps.add(staticApps) && !staticApps.getCEntries().isEmpty()) {
+                    throw new StaticResourceException("Unable to load static apps");
+                }
+                
+
+                log.debug("Static apps loaded ({})", staticApps.getCEntries().size());
+
+                log.debug("Static configuration loaded (total roles: {}/total action groups: {}/total tenants: {}/total apps: {})", roles.getCEntries().size(), actionGroups.getCEntries().size(), tenants.getCEntries().size(), apps.getCEntries().size());
 
             
 
             //rebuild v7 Models
             dcm = new DynamicConfigModelV7(getConfigV7(config), esSettings, configPath, iab);
             ium = new InternalUsersModelV7((SecurityDynamicConfiguration<InternalUserV7>) internalusers);
-            cm = new ConfigModelV7((SecurityDynamicConfiguration<RoleV7>) roles,(SecurityDynamicConfiguration<RoleMappingsV7>)rolesmapping, (SecurityDynamicConfiguration<ActionGroupsV7>)actionGroups, (SecurityDynamicConfiguration<TenantV7>) tenants,dcm, esSettings);
+            cm = new ConfigModelV7((SecurityDynamicConfiguration<RoleV7>) roles,(SecurityDynamicConfiguration<RoleMappingsV7>)rolesmapping, (SecurityDynamicConfiguration<ActionGroupsV7>)actionGroups, (SecurityDynamicConfiguration<TenantV7>) tenants, (SecurityDynamicConfiguration<AppV7>) apps,dcm, esSettings);
 
         } else {
 

@@ -148,6 +148,7 @@ import com.amazon.opendistroforelasticsearch.security.rest.KibanaInfoAction;
 import com.amazon.opendistroforelasticsearch.security.rest.OpenDistroSecurityHealthAction;
 import com.amazon.opendistroforelasticsearch.security.rest.OpenDistroSecurityInfoAction;
 import com.amazon.opendistroforelasticsearch.security.rest.TenantInfoAction;
+import com.amazon.opendistroforelasticsearch.security.rest.AppInfoAction;
 import com.amazon.opendistroforelasticsearch.security.securityconf.DynamicConfigFactory;
 import com.amazon.opendistroforelasticsearch.security.ssl.OpenDistroSecuritySSLPlugin;
 import com.amazon.opendistroforelasticsearch.security.ssl.SslExceptionHandler;
@@ -450,6 +451,8 @@ public final class OpenDistroSecurityPlugin extends OpenDistroSecuritySSLPlugin 
                 handlers.add(new OpenDistroSecurityHealthAction(settings, restController, Objects.requireNonNull(backendRegistry)));
                 handlers.add(new OpenDistroSecuritySSLCertsInfoAction(settings, restController, odsks, Objects.requireNonNull(threadPool), Objects.requireNonNull(adminDns)));
                 handlers.add(new TenantInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool),
+				Objects.requireNonNull(cs), Objects.requireNonNull(adminDns)));
+                handlers.add(new AppInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool),
 				Objects.requireNonNull(cs), Objects.requireNonNull(adminDns)));
 
                 if (sslCertReloadEnabled) {

@@ -23,6 +23,7 @@ public class RoleV7 implements Hideable, StaticDefinable {
     private List<String> cluster_permissions = Collections.emptyList();
     private List<Index> index_permissions = Collections.emptyList();
     private List<Tenant> tenant_permissions = Collections.emptyList();
+    private List<App> app_permissions = Collections.emptyList();
     
     public RoleV7() {
         
@@ -35,6 +36,7 @@ public class RoleV7 implements Hideable, StaticDefinable {
         this.cluster_permissions = roleV6.getCluster();
         index_permissions = new ArrayList<>();
         tenant_permissions = new ArrayList<>();
+        app_permissions = new ArrayList<>();
         
         for(Entry<String, RoleV6.Index> v6i: roleV6.getIndices().entrySet()) {
             index_permissions.add(new Index(v6i.getKey(), v6i.getValue()));
@@ -58,6 +60,26 @@ public class RoleV7 implements Hideable, StaticDefinable {
             t.setAllowed_actions(Collections.singletonList("kibana_all_read"));
             t.setTenant_patterns(roTenants);
             tenant_permissions.add(t);
+        }
+        
+        //rw apps
+        List<String> rwApps = roleV6.getApps().entrySet().stream().filter(e->  "rw".equalsIgnoreCase(e.getValue())).map(e->e.getKey()).collect(Collectors.toList());
+        
+        if(rwApps != null && !rwApps.isEmpty()) {
+            App a = new App();
+            a.setAllowed_actions(Collections.singletonList("kibana_all_write"));
+            a.setApp_patterns(rwApps);
+            app_permissions.add(a);
+        }
+        
+        
+        List<String> roApps = roleV6.getApps().entrySet().stream().filter(e->  "ro".equalsIgnoreCase(e.getValue())).map(e->e.getKey()).collect(Collectors.toList());
+        
+        if(roApps != null && !roApps.isEmpty()) {
+            App a = new App();
+            a.setAllowed_actions(Collections.singletonList("kibana_all_read"));
+            a.setApp_patterns(roApps);
+            app_permissions.add(a);
         }
 
     }
@@ -171,7 +193,41 @@ public class RoleV7 implements Hideable, StaticDefinable {
         }
         
         
+    } 
+
+    public static class App {
+
+        private List<String> app_patterns = Collections.emptyList();
+        private List<String> allowed_actions = Collections.emptyList();
+        
+        public App() {
+            super();
+        }
+
+        public List<String> getApp_patterns() {
+            return app_patterns;
+        }
+
+        public void setApp_patterns(List<String> app_patterns) {
+            this.app_patterns = app_patterns;
+        }
+
+        public List<String> getAllowed_actions() {
+            return allowed_actions;
+        }
+
+        public void setAllowed_actions(List<String> allowed_actions) {
+            this.allowed_actions = allowed_actions;
+        }
+
+        @Override
+        public String toString() {
+            return "App [app=" + app_patterns + ", allowed_actions=" + allowed_actions + "]";
+        }
+        
+        
     }
+   
     
 
     public boolean isHidden() {
@@ -216,6 +272,14 @@ public class RoleV7 implements Hideable, StaticDefinable {
         this.tenant_permissions = tenant_permissions;
     }
 
+    public List<App> getApp_permissions() {
+        return app_permissions;
+    }
+
+    public void setApp_permissions(List<App> app_permissions) {
+        this.app_permissions = app_permissions;
+    }
+
     public boolean isReserved() {
         return reserved;
     }
@@ -237,7 +301,7 @@ public class RoleV7 implements Hideable, StaticDefinable {
     public String toString() {
         return "RoleV7 [reserved=" + reserved + ", hidden=" + hidden + ", _static=" + _static + ", description=" + description
                 + ", cluster_permissions=" + cluster_permissions + ", index_permissions=" + index_permissions + ", tenant_permissions="
-                + tenant_permissions + "]";
+                + tenant_permissions + ", app_permissions=" + app_permissions + "]";
     }
     
 

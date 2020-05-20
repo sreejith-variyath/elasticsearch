@@ -32,6 +32,7 @@ public class RolesValidator extends AbstractConfigurationValidator {
 		this.payloadMandatory = true;
         allowedKeys.put("cluster_permissions", DataType.ARRAY);
         allowedKeys.put("tenant_permissions", DataType.ARRAY);
+        allowedKeys.put("app_permissions", DataType.ARRAY);
         allowedKeys.put("index_permissions", DataType.ARRAY);
         allowedKeys.put("description", DataType.STRING);
         if (isSuperAdmin) allowedKeys.put("reserved", DataType.BOOLEAN);

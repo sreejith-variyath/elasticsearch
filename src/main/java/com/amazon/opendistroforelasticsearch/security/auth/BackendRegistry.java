@@ -481,13 +481,16 @@ public class BackendRegistry {
             }
 
             final String tenant = Utils.coalesce(request.header("securitytenant"), request.header("security_tenant"));
+            final String app = Utils.coalesce(request.header("securityapp"), request.header("security_app"));
 
             if(log.isDebugEnabled()) {
                 log.debug("Rest user '{}' is authenticated", authenticatedUser);
                 log.debug("securitytenant '{}'", tenant);
+                log.debug("securityapp '{}'", app);
             }
 
             authenticatedUser.setRequestedTenant(tenant);
+            authenticatedUser.setRequestedApp(app);
             authenticated = true;
             break;
         }//end looping auth domains
@@ -769,6 +772,7 @@ public class BackendRegistry {
                 }
                 
                 impersonatedUser.setRequestedTenant(originalUser.getRequestedTenant());
+                impersonatedUser.setRequestedApp(originalUser.getRequestedApp());
                 return impersonatedUser;
             }
 

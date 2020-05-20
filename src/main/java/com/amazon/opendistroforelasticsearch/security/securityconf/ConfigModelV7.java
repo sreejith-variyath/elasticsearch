@@ -53,6 +53,7 @@ import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleM
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7.Index;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.AppV7;
 import com.amazon.opendistroforelasticsearch.security.support.ConfigConstants;
 import com.amazon.opendistroforelasticsearch.security.support.WildcardMatcher;
 import com.amazon.opendistroforelasticsearch.security.user.User;
@@ -71,20 +72,24 @@ public class ConfigModelV7 extends ConfigModel {
     private ActionGroupResolver agr = null;
     private SecurityRoles securityRoles = null;
     private TenantHolder tenantHolder;
+    private AppHolder appHolder;
     private RoleMappingHolder roleMappingHolder;
     private SecurityDynamicConfiguration<RoleV7> roles;
     private SecurityDynamicConfiguration<TenantV7> tenants;
+    private SecurityDynamicConfiguration<AppV7> apps;
 
     public ConfigModelV7(
             SecurityDynamicConfiguration<RoleV7> roles,
             SecurityDynamicConfiguration<RoleMappingsV7> rolemappings,
             SecurityDynamicConfiguration<ActionGroupsV7> actiongroups,
             SecurityDynamicConfiguration<TenantV7> tenants,
+            SecurityDynamicConfiguration<AppV7> apps,
             DynamicConfigModel dcm,
             Settings esSettings) {
 
         this.roles = roles;
         this.tenants = tenants;
+        this.apps = apps;
         
         try {
             rolesMappingResolution = ConfigConstants.RolesMappingResolution.valueOf(
@@ -98,13 +103,18 @@ public class ConfigModelV7 extends ConfigModel {
         agr = reloadActionGroups(actiongroups);
         securityRoles = reload(roles);
         tenantHolder = new TenantHolder(roles, tenants);
+        appHolder = new AppHolder(roles, apps);
         roleMappingHolder = new RoleMappingHolder(rolemappings, dcm.getHostsResolverMode());
     }
     
     public Set<String> getAllConfiguredTenantNames() {
         return Collections.unmodifiableSet(tenants.getCEntries().keySet());
     }
-    
+     
+    public Set<String> getAllConfiguredAppNames() {
+        return Collections.unmodifiableSet(apps.getCEntries().keySet());
+    }
+   
     public SecurityRoles getSecurityRoles() {
         return securityRoles;
     }
@@ -902,6 +912,58 @@ public class ConfigModelV7 extends ConfigModel {
         }
     }
 
+    public static class App {
+        private final String app;
+        private final boolean readWrite;
+
+        private App(String app, boolean readWrite) {
+            super();
+            this.app = app;
+            this.readWrite = readWrite;
+        }
+
+        public String getApp() {
+            return app;
+        }
+
+        public boolean isReadWrite() {
+            return readWrite;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (readWrite ? 1231 : 1237);
+            result = prime * result + ((app == null) ? 0 : app.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            App other = (App) obj;
+            if (readWrite != other.readWrite)
+                return false;
+            if (app == null) {
+                if (other.app != null)
+                    return false;
+            } else if (!app.equals(other.app))
+                return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return System.lineSeparator() + "                app=" + app + System.lineSeparator() + "                readWrite=" + readWrite;
+        }
+    }
+
     private static String replaceProperties(String orig, User user) {
 
         if (user == null || orig == null) {
@@ -1068,6 +1130,105 @@ public class ConfigModelV7 extends ConfigModel {
             return Collections.unmodifiableMap(result);
         }
     }
+    
+    private class AppHolder {
+
+        private SetMultimap<String, Tuple<String, Boolean>> appsMM = null;
+
+        public AppHolder(SecurityDynamicConfiguration<RoleV7> roles, SecurityDynamicConfiguration<AppV7> definedApps) {
+            final Set<Future<Tuple<String, Set<Tuple<String, Boolean>>>>> futures = new HashSet<>(roles.getCEntries().size());
+
+            final ExecutorService execs = Executors.newFixedThreadPool(10);
+
+            for(Entry<String, RoleV7> securityRole: roles.getCEntries().entrySet()) {
+                
+                if(securityRole.getValue() == null) {
+                    continue;
+                }
+
+                Future<Tuple<String, Set<Tuple<String, Boolean>>>> future = execs.submit(new Callable<Tuple<String, Set<Tuple<String, Boolean>>>>() {
+                    @Override
+                    public Tuple<String, Set<Tuple<String, Boolean>>> call() throws Exception {
+                        final Set<Tuple<String, Boolean>> tuples = new HashSet<>();
+                        final List<RoleV7.App> apps = securityRole.getValue().getApp_permissions();
+
+                        if (apps != null) {
+                            
+                            for (RoleV7.App app : apps) {
+                                
+                                for(String matchingApp: WildcardMatcher.getMatchAny(app.getApp_patterns(), definedApps.getCEntries().keySet())) {
+                                    tuples.add(new Tuple<String, Boolean>(matchingApp, agr.resolvedActions(app.getAllowed_actions()).contains("kibana:saved_objects/*/write")));
+                                }
+                            }
+                        }
+
+                        return new Tuple<String, Set<Tuple<String, Boolean>>>(securityRole.getKey(), tuples);
+                    }
+                });
+
+                futures.add(future);
+
+            }
+
+            execs.shutdown();
+            try {
+                execs.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (1) while loading roles");
+                return;
+            }
+
+            try {
+                final SetMultimap<String, Tuple<String, Boolean>> appsMM_ = SetMultimapBuilder.hashKeys(futures.size()).hashSetValues(16).build();
+
+                for (Future<Tuple<String, Set<Tuple<String, Boolean>>>> future : futures) {
+                    Tuple<String, Set<Tuple<String, Boolean>>> result = future.get();
+                    appsMM_.putAll(result.v1(), result.v2());
+                }
+
+                appsMM = appsMM_;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (2) while loading roles");
+                return;
+            } catch (ExecutionException e) {
+                log.error("Error while updating roles: {}", e.getCause(), e.getCause());
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+
+        }
+
+        public Map<String, Boolean> mapApps(final User user, Set<String> roles) {
+
+            if (user == null || appsMM == null) {
+                return Collections.emptyMap();
+            }
+
+            final Map<String, Boolean> result = new HashMap<>(roles.size());
+            result.put(user.getName(), true);
+
+            appsMM.entries().stream().filter(e -> roles.contains(e.getKey())).filter(e -> !user.getName().equals(e.getValue().v1())).forEach(e -> {
+                final String app = e.getValue().v1();
+                final boolean rw = e.getValue().v2();
+
+                if (rw || !result.containsKey(app)) { //RW outperforms RO
+                    result.put(app, rw);
+                }
+            });
+            
+            if(!result.containsKey("global_app") && (
+                    roles.contains("kibana_user")
+                    || roles.contains("kibana_user")
+                    || roles.contains("all_access")
+                    || roles.contains("ALL_ACCESS")
+                    )) {
+                result.put("global_app", true);
+            }
+
+            return Collections.unmodifiableMap(result);
+        }
+    }
 
     private class RoleMappingHolder {
 
@@ -1188,6 +1349,10 @@ public class ConfigModelV7 extends ConfigModel {
 
     public Map<String, Boolean> mapTenants(User user, Set<String> roles) {
         return tenantHolder.mapTenants(user, roles);
+    }
+
+    public Map<String, Boolean> mapApps(User user, Set<String> roles) {
+        return appHolder.mapApps(user, roles);
     }
 
     public Set<String> mapSecurityRoles(User user, TransportAddress caller) {

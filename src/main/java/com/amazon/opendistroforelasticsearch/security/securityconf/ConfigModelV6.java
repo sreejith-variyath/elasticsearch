@@ -70,6 +70,7 @@ public class ConfigModelV6 extends ConfigModel {
     private ActionGroupResolver agr = null;
     private SecurityRoles securityRoles = null;
     private TenantHolder tenantHolder;
+    private AppHolder appHolder;
     private RoleMappingHolder roleMappingHolder;
     private SecurityDynamicConfiguration<RoleV6> roles;
 
@@ -94,6 +95,7 @@ public class ConfigModelV6 extends ConfigModel {
         agr = reloadActionGroups(actiongroups);
         securityRoles = reload(roles);
         tenantHolder = new TenantHolder(roles);
+        appHolder = new AppHolder(roles);
         roleMappingHolder = new RoleMappingHolder(rolesmapping, dcm.getHostsResolverMode());
     }
     
@@ -110,7 +112,21 @@ public class ConfigModelV6 extends ConfigModel {
 
         return Collections.unmodifiableSet(configuredTenants);
     }
-    
+     
+    public Set<String> getAllConfiguredAppNames() {
+        final Set<String> configuredApps = new HashSet<>();
+        for (Entry<String, RoleV6> securityRole : roles.getCEntries().entrySet()) {
+            Map<String, String> apps = securityRole.getValue().getApps();
+
+            if (apps != null) {
+                configuredApps.addAll(apps.keySet());
+            }
+
+        }
+
+        return Collections.unmodifiableSet(configuredApps);
+    }
+   
     public SecurityRoles getSecurityRoles() {
         return securityRoles;
     }
@@ -229,6 +245,15 @@ public class ConfigModelV6 extends ConfigModel {
                             }
                         }
                     //}
+
+                        for(Entry<String, String> app: securityRole.getValue().getApps().entrySet()) {
+
+                            if("RW".equalsIgnoreCase(app.getValue())) {
+                                _securityRole.addApp(new App(app.getKey(), true));
+                            } else {
+                                _securityRole.addApp(new App(app.getKey(), false));
+                            }
+                        }
 
 
                     //final Map<String, DynamicConfiguration> permittedAliasesIndices = securityRoleSettings.getGroups(DotPath.of("indices"));
@@ -509,6 +534,7 @@ public class ConfigModelV6 extends ConfigModel {
 
         private final String name;
         private final Set<Tenant> tenants = new HashSet<>();
+        private final Set<App> apps = new HashSet<>();
         private final Set<IndexPattern> ipatterns = new HashSet<>();
         private final Set<String> clusterPerms = new HashSet<>();
 
@@ -570,6 +596,13 @@ public class ConfigModelV6 extends ConfigModel {
             return this;
         }
 
+        private SecurityRole addApp(App app) {
+            if (app != null) {
+                this.apps.add(app);
+            }
+            return this;
+        }
+
         private SecurityRole addIndexPattern(IndexPattern indexPattern) {
             if (indexPattern != null) {
                 this.ipatterns.add(indexPattern);
@@ -592,6 +625,7 @@ public class ConfigModelV6 extends ConfigModel {
             result = prime * result + ((ipatterns == null) ? 0 : ipatterns.hashCode());
             result = prime * result + ((name == null) ? 0 : name.hashCode());
             result = prime * result + ((tenants == null) ? 0 : tenants.hashCode());
+            result = prime * result + ((apps == null) ? 0 : apps.hashCode());
             return result;
         }
 
@@ -624,18 +658,28 @@ public class ConfigModelV6 extends ConfigModel {
                     return false;
             } else if (!tenants.equals(other.tenants))
                 return false;
+            if (apps == null) {
+                if (other.apps != null)
+                    return false;
+            } else if (!apps.equals(other.apps))
+                return false;
             return true;
         }
 
         @Override
         public String toString() {
-            return System.lineSeparator() + "  " + name + System.lineSeparator() + "    tenants=" + tenants + System.lineSeparator()
+            return System.lineSeparator() + "  " + name + System.lineSeparator() + "    tenants=" + tenants + "	apps=" + apps + System.lineSeparator()
                     + "    ipatterns=" + ipatterns + System.lineSeparator() + "    clusterPerms=" + clusterPerms;
         }
 
         public Set<Tenant> getTenants(User user) {
             //TODO filter out user tenants
             return Collections.unmodifiableSet(tenants);
+        }
+
+        public Set<App> getApps(User user) {
+            //TODO filter out user apps
+            return Collections.unmodifiableSet(apps);
         }
 
         public Set<IndexPattern> getIpatterns() {
@@ -913,6 +957,58 @@ public class ConfigModelV6 extends ConfigModel {
         }
     }
 
+    public static class App {
+        private final String app;
+        private final boolean readWrite;
+
+        private App(String app, boolean readWrite) {
+            super();
+            this.app = app;
+            this.readWrite = readWrite;
+        }
+
+        public String getApp() {
+            return app;
+        }
+
+        public boolean isReadWrite() {
+            return readWrite;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (readWrite ? 1231 : 1237);
+            result = prime * result + ((app == null) ? 0 : app.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            App other = (App) obj;
+            if (readWrite != other.readWrite)
+                return false;
+            if (app == null) {
+                if (other.app != null)
+                    return false;
+            } else if (!app.equals(other.app))
+                return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return System.lineSeparator() + "                app=" + app + System.lineSeparator() + "                readWrite=" + readWrite;
+        }
+    }
+
     private static String replaceProperties(String orig, User user) {
 
         if (user == null || orig == null) {
@@ -1105,6 +1201,100 @@ public class ConfigModelV6 extends ConfigModel {
             return Collections.unmodifiableMap(result);
         }
     }
+    
+    private class AppHolder {
+
+        private SetMultimap<String, Tuple<String, Boolean>> appsMM = null;
+
+        public AppHolder(SecurityDynamicConfiguration<RoleV6> roles) {
+            final Set<Future<Tuple<String, Set<Tuple<String, Boolean>>>>> futures = new HashSet<>(roles.getCEntries().size());
+
+            final ExecutorService execs = Executors.newFixedThreadPool(10);
+
+            for(Entry<String, RoleV6> securityRole: roles.getCEntries().entrySet()) {
+                
+                if(securityRole.getValue() == null) {
+                    continue;
+                }
+
+                Future<Tuple<String, Set<Tuple<String, Boolean>>>> future = execs.submit(new Callable<Tuple<String, Set<Tuple<String, Boolean>>>>() {
+                    @Override
+                    public Tuple<String, Set<Tuple<String, Boolean>>> call() throws Exception {
+                        final Set<Tuple<String, Boolean>> tuples = new HashSet<>();
+                        final Map<String, String> apps = securityRole.getValue().getApps();
+
+                        if (apps != null) {
+                            
+                            for (String app : apps.keySet()) {
+
+                                if ("RW".equalsIgnoreCase(apps.get(app))) {
+                                    //RW
+                                    tuples.add(new Tuple<String, Boolean>(app, true));
+                                } else {
+                                    //RO
+                                    tuples.add(new Tuple<String, Boolean>(app, false));
+                                }
+                            }
+                        }
+
+                        return new Tuple<String, Set<Tuple<String, Boolean>>>(securityRole.getKey(), tuples);
+                    }
+                });
+
+                futures.add(future);
+
+            }
+
+            execs.shutdown();
+            try {
+                execs.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (1) while loading roles");
+                return;
+            }
+
+            try {
+                final SetMultimap<String, Tuple<String, Boolean>> appsMM_ = SetMultimapBuilder.hashKeys(futures.size()).hashSetValues(16).build();
+
+                for (Future<Tuple<String, Set<Tuple<String, Boolean>>>> future : futures) {
+                    Tuple<String, Set<Tuple<String, Boolean>>> result = future.get();
+                    appsMM_.putAll(result.v1(), result.v2());
+                }
+
+                appsMM = appsMM_;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (2) while loading roles");
+                return;
+            } catch (ExecutionException e) {
+                log.error("Error while updating roles: {}", e.getCause(), e.getCause());
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+
+        }
+
+        public Map<String, Boolean> mapApps(final User user, Set<String> roles) {
+
+            if (user == null || appsMM == null) {
+                return Collections.emptyMap();
+            }
+
+            final Map<String, Boolean> result = new HashMap<>(roles.size());
+            result.put(user.getName(), true);
+
+            appsMM.entries().stream().filter(e -> roles.contains(e.getKey())).filter(e -> !user.getName().equals(e.getValue().v1())).forEach(e -> {
+                final String app = e.getValue().v1();
+                final boolean rw = e.getValue().v2();
+
+                if (rw || !result.containsKey(app)) { //RW outperforms RO
+                    result.put(app, rw);
+                }
+            });
+
+            return Collections.unmodifiableMap(result);
+        }
+    }
 
     private class RoleMappingHolder {
 
@@ -1225,6 +1415,10 @@ public class ConfigModelV6 extends ConfigModel {
 
     public Map<String, Boolean> mapTenants(User user, Set<String> roles) {
         return tenantHolder.mapTenants(user, roles);
+    }
+
+    public Map<String, Boolean> mapApps(User user, Set<String> roles) {
+        return appHolder.mapApps(user, roles);
     }
 
     public Set<String> mapSecurityRoles(User user, TransportAddress caller) {

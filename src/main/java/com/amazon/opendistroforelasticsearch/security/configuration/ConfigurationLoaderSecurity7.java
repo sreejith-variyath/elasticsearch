@@ -126,6 +126,12 @@ public class ConfigurationLoaderSecurity7 {
                         latch.countDown();
                         return;
                     }
+
+                    if(cType == CType.APPS) {
+                        rs.put(cType, SecurityDynamicConfiguration.empty());
+                        latch.countDown();
+                        return;
+                    }
                 }
 
                 // Since NODESDN is newly introduced data-type applying for existing clusters as well, we make it backward compatible by returning valid empty

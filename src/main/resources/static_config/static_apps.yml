@@ -1,0 +1,10 @@
+---
+_meta:
+  type: "apps"
+  config_version: 2
+
+global_app:
+  reserved: true
+  hidden: false
+  static: true
+  description: "Global app"

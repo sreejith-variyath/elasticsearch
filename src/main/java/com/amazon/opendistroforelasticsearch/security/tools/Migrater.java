@@ -35,6 +35,7 @@ import com.amazon.opendistroforelasticsearch.security.securityconf.impl.CType;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.SecurityDynamicConfiguration;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.RoleV7;
 import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.TenantV7;
+import com.amazon.opendistroforelasticsearch.security.securityconf.impl.v7.AppV7;
 import com.google.common.io.Files;
 
 public class Migrater {
@@ -117,8 +118,9 @@ public class Migrater {
 
             if(cType == CType.ROLES) {
                 Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<TenantV7>> tup = Migration.migrateRoles(SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(file), CType.ROLES, 1, 0, 0), null);
+                Tuple<SecurityDynamicConfiguration<RoleV7>, SecurityDynamicConfiguration<AppV7>> atup = Migration.migrateRolesApps(SecurityDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(file), CType.ROLES, 1, 0, 0), null);
                 boolean roles = backupAndWrite(file, tup.v1(), backup);
-                return roles && backupAndWrite(new File(file.getParent(),"tenants.yml"), tup.v2(), backup);
+                return roles && backupAndWrite(new File(file.getParent(),"tenants.yml"), tup.v2(), backup) && backupAndWrite(new File(file.getParent(),"apps.yml"), atup.v2(), backup);
             }
             
             if(cType == CType.ROLESMAPPING) {

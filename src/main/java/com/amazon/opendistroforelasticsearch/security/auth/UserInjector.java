@@ -120,6 +120,11 @@ public class UserInjector {
             user.setRequestedTenant(parts[4]);
         }
 
+        // requested app
+        if (parts.length > 5 && !Strings.isNullOrEmpty(parts[5])) {
+            user.setRequestedApp(parts[5]);
+        }
+
         // remote IP - we can set it only once, so we do it last. If non is given,
         // BackendRegistry/XFFResolver will do the job
         if (parts.length > 2 && !Strings.isNullOrEmpty(parts[2])) {

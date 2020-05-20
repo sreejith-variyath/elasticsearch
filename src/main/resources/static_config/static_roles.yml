@@ -20,6 +20,11 @@ all_access:
         - "*"
       allowed_actions:
         - "kibana_all_write"
+  app_permissions:
+    - app_patterns:
+        - "*"
+      allowed_actions:
+        - "kibana_all_write"
 
 kibana_user:
   reserved: true
