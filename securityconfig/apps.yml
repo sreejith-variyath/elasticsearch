@@ -8,4 +8,5 @@ _meta:
 ## Demo apps
 admin_app:
   reserved: false
+  tenant: admin_tenant
   description: "Demo app for admin user"

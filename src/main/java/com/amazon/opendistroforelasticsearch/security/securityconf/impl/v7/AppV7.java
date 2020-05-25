@@ -11,6 +11,7 @@ public class AppV7 implements Hideable, StaticDefinable {
     @JsonProperty(value = "static")
     private boolean _static;
     private String description;
+    private String tenant;
     
     public boolean isHidden() {
         return hidden;
@@ -40,10 +41,28 @@ public class AppV7 implements Hideable, StaticDefinable {
     public void setStatic(boolean _static) {
         this._static = _static;
     }
-    @Override
+
+    public String getTenant() {
+        return tenant;
+    }
+
+    public void setTenant(String tenant) {
+        this.tenant = tenant;
+    }
+
+  /*  @Override
     public String toString() {
         return "AppV7 [reserved=" + reserved + ", hidden=" + hidden + ", _static=" + _static + ", description=" + description + "]";
+    }*/
+
+    @Override
+    public String toString() {
+        return "AppV7{" +
+                "reserved=" + reserved +
+                ", hidden=" + hidden +
+                ", _static=" + _static +
+                ", description='" + description + '\'' +
+                ", tenant='" + tenant + '\'' +
+                '}';
     }
-    
-    
 }

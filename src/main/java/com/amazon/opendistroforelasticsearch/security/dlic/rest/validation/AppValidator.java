@@ -12,6 +12,7 @@ public class AppValidator extends AbstractConfigurationValidator {
         super(request, ref, esSettings, param);
         this.payloadMandatory = false;
         allowedKeys.put("description", DataType.STRING);
+        allowedKeys.put("tenant", DataType.STRING);
         if (isSuperAdmin) allowedKeys.put("reserved", DataType.BOOLEAN);
     }
 
