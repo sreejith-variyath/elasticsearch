@@ -24,11 +24,14 @@ import com.amazon.opendistroforelasticsearch.security.ssl.transport.PrincipalExt
 
 public class AppsApiAction extends PatchableResourceApiAction {
 
+    PrivilegesEvaluator evaluator;
+
     @Inject
     public AppsApiAction(final Settings settings, final Path configPath, final RestController controller, final Client client,
                             final AdminDNs adminDNs, final ConfigurationRepository cl, final ClusterService cs,
                             final PrincipalExtractor principalExtractor, final PrivilegesEvaluator evaluator, ThreadPool threadPool, AuditLog auditLog) {
         super(settings, configPath, controller, client, adminDNs, cl, cs, principalExtractor, evaluator, threadPool, auditLog);
+        this.evaluator = evaluator;
     }
 
     @Override
@@ -48,7 +51,7 @@ public class AppsApiAction extends PatchableResourceApiAction {
 
     @Override
     protected AbstractConfigurationValidator getValidator(final RestRequest request, BytesReference ref, Object... param) {
-        return new AppValidator(request, isSuperAdmin(), ref, this.settings, param);
+        return new AppValidator(request, isSuperAdmin(), ref, this.settings, this.evaluator,param);
     }
 
     @Override
