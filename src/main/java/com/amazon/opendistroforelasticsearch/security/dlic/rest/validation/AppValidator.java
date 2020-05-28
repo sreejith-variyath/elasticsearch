@@ -35,6 +35,7 @@ public class AppValidator extends AbstractConfigurationValidator {
      */
     @Override
     public boolean validate() {
+
         if (!super.validate()) {
             return false;
         }
@@ -45,15 +46,18 @@ public class AppValidator extends AbstractConfigurationValidator {
 
             final ReadContext ctx = JsonPath.parse(this.content.utf8ToString());
             String tenantName = ctx.read("tenant");
-            logger.error(" Logging the request Content {} ",this.content.utf8ToString());
-            logger.error(" Tenant name  {} ",tenantName);
+
+            logger.info(" Logging the request Content {} ",this.content.utf8ToString());
+            logger.info(" Tenant name  {} ",tenantName);
+
             Set<String> tenants = evaluator.getAllConfiguredTenantNames();
-            if(tenants.contains(tenantName)){
-                return true;
+            if(!tenants.contains(tenantName)){
+                valid = false;
+                this.errorType = ErrorType.INVALID_TENANT;
             }
-            this.errorType = ErrorType.INVALID_TENANT;
+
         }
-        logger.error(" Logging the all apps name {} ",evaluator.getAllConfiguredTenantNames());
-        return false;
+
+        return valid;
     }
 }
