@@ -10,19 +10,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Set;
 
-public class AppValidator extends AbstractConfigurationValidator {
+public class AppValidator extends AppConfigurationValidator {
 
     protected final Logger logger = LogManager.getLogger(this.getClass());
 
     private final PrivilegesEvaluator evaluator;
+    ErrorType errorType = ErrorType.NONE;
 
     public AppValidator(final RestRequest request, boolean isSuperAdmin, BytesReference ref, final Settings esSettings,PrivilegesEvaluator evaluator, Object... param) {
-        super(request, ref, esSettings, param);
+        super(request, ref, esSettings, evaluator,param);
         this.payloadMandatory = false;
         allowedKeys.put("description", DataType.STRING);
         allowedKeys.put("tenant", DataType.STRING);
@@ -35,29 +38,6 @@ public class AppValidator extends AbstractConfigurationValidator {
      */
     @Override
     public boolean validate() {
-
-        if (!super.validate()) {
-            return false;
-        }
-
-        boolean valid = true;
-
-        if (this.content != null && this.content.length() > 0) {
-
-            final ReadContext ctx = JsonPath.parse(this.content.utf8ToString());
-            String tenantName = ctx.read("tenant");
-
-            logger.info(" Logging the request Content {} ",this.content.utf8ToString());
-            logger.info(" Tenant name  {} ",tenantName);
-
-            Set<String> tenants = evaluator.getAllConfiguredTenantNames();
-            if(!tenants.contains(tenantName)){
-                valid = false;
-                this.errorType = ErrorType.INVALID_TENANT;
-            }
-
-        }
-
-        return valid;
+        return super.validate();
     }
 }
